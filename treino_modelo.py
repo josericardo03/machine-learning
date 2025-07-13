@@ -165,6 +165,35 @@ try:
         plt.tight_layout()
         plt.show()
 
+        # 10. Previsão dos próximos meses para cada barbeiro
+        print("\n--- Previsão dos próximos 3 meses para cada barbeiro ---")
+        meses_futuros = [10, 11, 12]  # Outubro, Novembro, Dezembro
+        barbeiros = df['id_barbeiro'].unique()
+        # Usar médias históricas das features por barbeiro
+        medias = df.groupby('id_barbeiro').mean(numeric_only=True).reset_index()
+        previsoes = []
+        for barbeiro in barbeiros:
+            dados_barbeiro = medias[medias['id_barbeiro'] == barbeiro]
+            for mes in meses_futuros:
+                entrada = {
+                    'num_agendamentos': dados_barbeiro['num_agendamentos'].values[0],
+                    'valor_medio_agendamento': dados_barbeiro['valor_medio_agendamento'].values[0],
+                    'num_clientes_unicos': dados_barbeiro['num_clientes_unicos'].values[0],
+                    'num_promocoes': dados_barbeiro['num_promocoes'].values[0],
+                    'dias_trabalhados': dados_barbeiro['dias_trabalhados'].values[0],
+                    'mes': mes
+                }
+                X_novo = pd.DataFrame([entrada])
+                X_novo_scaled = scaler.transform(X_novo)
+                faturamento_previsto = model.predict(X_novo_scaled)[0]
+                previsoes.append({
+                    'id_barbeiro': barbeiro,
+                    'mes': mes,
+                    'faturamento_previsto': faturamento_previsto
+                })
+        df_previsoes = pd.DataFrame(previsoes)
+        print(df_previsoes)
+
     else:
         print("⚠️  A VIEW está vazia (0 registros)")
         
