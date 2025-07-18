@@ -1,0 +1,93 @@
+id_pais,nome_pais,id_continente
+57,Alemanha,6
+26,Argentina,4
+59,Bélgica,6
+23,Canadá,3
+28,Chile,4
+62,Dinamarca,6
+63,Eslováquia,6
+65,Espanha,6
+24,Estados Unidos,3
+68,França,6
+70,Holanda,6
+72,Irlanda,6
+73,Itália,6
+74,Letônia,6
+25,México,3
+33,Paraguai,4
+78,Polônia,6
+79,Portugal,6
+80,Reino Unido,6
+83,Rússia,6
+85,Suécia,6
+86,Suíça,6
+88,Ucrânia,6
+37,Venezuela,4
+2,Angola,1
+90,Austrália,7
+22,Outros América Central e Caribe,2
+40,China,5
+29,Colômbia,4
+12,Costa Rica,2
+14,El Salvador,2
+30,Equador,4
+43,Filipinas,5
+69,Grécia,6
+15,Guatemala,2
+31,Guiana,4
+17,Honduras,2
+71,Hungria,6
+44,Índia,5
+47,Israel,5
+48,Japão,5
+50,Malásia,5
+89,Outros países da Europa,6
+6,Marrocos,1
+7,Moçambique,1
+77,Noruega,6
+19,Panamá,2
+51,Paquistão,5
+34,Peru,4
+52,República da Coreia,5
+20,República Dominicana,2
+81,República Tcheca,6
+82,Romênia,6
+35,Suriname,4
+54,Tailândia,5
+27,Bolívia,4
+36,Uruguai,4
+58,Áustria,6
+60,Bulgária,6
+3,Cabo Verde,1
+56,Outros países da Ásia,5
+61,Croácia,6
+64,Eslovênia,6
+66,Estônia,6
+11,Outros países da África,1
+75,Lituânia,6
+76,Luxemburgo,6
+84,Sérvia,6
+87,Turquia,6
+67,Finlândia,6
+45,Indonésia,5
+46,Irã,5
+18,Nicarágua,2
+9,Quênia,1
+10,Tunísia,1
+42,Cingapura,5
+13,Cuba,2
+4,Egito,1
+16,Haiti,2
+91,Nova Zelândia,7
+55,Taiwan,5
+21,Trinidad e Tobago,2
+1,África do Sul,1
+38,Arábia Saudita,5
+49,Líbano,5
+92,Outros países da Oceania,7
+5,Gana,1
+8,Nigéria,1
+39,Bangladesh,5
+53,Síria,5
+93,Países não especificados,8
+32,Guiana Francesa,4

@@ -293,3 +293,22 @@ if len(previsoes_futuras) > 0:
     print(f"📊 Faturamento médio por mês/barbeiro: R$ {faturamento_total_previsto / len(previsoes_futuras):,.2f}")
 
 print("\n✅ Modelo de previsão concluído com sucesso!") 
+
+# 9. GRÁFICO DE CRESCIMENTO DOS LUCROS PARA O BARBEIRO 1
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+try:
+    df_graf = pd.read_csv('previsoes_futuras_2025.csv')
+    df_barbeiro1 = df_graf[df_graf['id_barbeiro'] == 10]
+    plt.figure(figsize=(10, 5))
+    sns.lineplot(data=df_barbeiro1, x='mes', y='faturamento_previsto', marker='o', color='blue')
+    plt.title('Previsão de Faturamento Mensal - Barbeiro 1 (2025)')
+    plt.xlabel('Mês')
+    plt.ylabel('Faturamento Previsto (R$)')
+    plt.xticks(range(1, 13))
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+except Exception as e:
+    print(f'Erro ao gerar gráfico: {e}') 

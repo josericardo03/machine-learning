@@ -1,0 +1,18 @@
+INSERT INTO ufs (id_uf, nome_uf) VALUES (99, 'Outras Unidades da Federação');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (3, 'Amapá');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (4, 'Amazonas');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (5, 'Bahia');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (6, 'Ceará');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (7, 'Distrito Federal');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (12, 'Mato Grosso do Sul');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (13, 'Minas Gerais');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (14, 'Pará');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (16, 'Paraná');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (17, 'Pernambuco');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (19, 'Rio de Janeiro');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (20, 'Rio Grande do Norte');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (21, 'Rio Grande do Sul');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (23, 'Roraima');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (24, 'Santa Catarina');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (25, 'São Paulo');
+INSERT INTO ufs (id_uf, nome_uf) VALUES (1, 'Acre');
