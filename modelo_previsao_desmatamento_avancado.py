@@ -116,4 +116,33 @@ for var in features_vif:
     plt.savefig(f'desmatamento_vs_{var}_padronizado.png')
     plt.show()
 
+# === PREVISÃO SIMPLES PARA CÁCERES USANDO APENAS O HISTÓRICO DO MUNICÍPIO ===
+print('\n=== PREVISÃO LINEAR SIMPLES PARA CÁCERES (APENAS HISTÓRICO LOCAL) ===')
+df_caceres = df[df['id_municipio_nome'] == 'Cáceres'].sort_values('ano')
+X_ano = df_caceres[['ano']].values
+y_desmatado = df_caceres['desmatado'].values
+reg_caceres = LinearRegression().fit(X_ano, y_desmatado)
+anos_futuros = np.array([[2022], [2023], [2024]])
+y_pred_futuro = reg_caceres.predict(anos_futuros)
+# Garante que a previsão nunca seja menor que 2021 se a tendência for de crescimento ou estabilidade
+if reg_caceres.coef_[0] >= 0:
+    y_pred_futuro = np.maximum(y_pred_futuro, y_desmatado[-1])
+
+# Mostrar resultados
+print('Coeficiente da regressão:', reg_caceres.coef_[0])
+print('Intercepto:', reg_caceres.intercept_)
+print('Valor real 2021:', y_desmatado[-1])
+print('Previsão para 2022, 2023, 2024:', y_pred_futuro)
+
+plt.figure(figsize=(7, 4))
+plt.plot(df_caceres['ano'], df_caceres['desmatado'], 'o-', label='Real')
+plt.plot(anos_futuros.flatten(), y_pred_futuro, 's--', label='Previsto (regressão local)')
+plt.xlabel('Ano')
+plt.ylabel('Desmatado')
+plt.title('Previsão Linear Simples para Cáceres (2022-2024)')
+plt.legend()
+plt.tight_layout()
+plt.savefig('previsao_linear_simples_caceres.png')
+plt.show()
+
 print('\n=== FIM DO PIPELINE DE REGRESSÃO LINEAR AVANÇADA ===')
