@@ -17,7 +17,7 @@ df = pd.read_sql_query(query, conn)
 conn.close()
 
 # 3. Filtra Barão de Melgaço
-df_barao = df[df["id_municipio_nome"] == "Aquidauana"].dropna()
+df_barao = df[df["id_municipio_nome"] == "Bodoquena"].dropna()
 
 # 4. Regressão múltipla para prever desmatamento
 X = df_barao[["valor_agropecuaria", "pib_per_capita"]]
