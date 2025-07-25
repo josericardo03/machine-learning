@@ -13,10 +13,10 @@ conn = psycopg2.connect(
     port="5432"
 )
 
-# 2. Consulta os dados da view (ainda traz amazonia_legal_bin, mas não será usada)
+# 2. Consulta os dados da view
 query = """
 SELECT ano, id_municipio_nome, desmatado, valor_agropecuaria, pib_per_capita, 
-       valor_industria, valor_administracao_publica, amazonia_legal_bin
+       valor_industria, valor_administracao_publica
 FROM view_dados_completos
 WHERE ano >= 2010 AND ano <= 2021
 """
@@ -33,8 +33,8 @@ for municipio in df["id_municipio_nome"].unique():
         continue
 
     try:
-        # Variáveis explicativas (sem amazonia_legal_bin)
-        X = df_mun[["ano", "valor_agropecuaria", "pib_per_capita", 
+        # Variáveis explicativas (sem ano)
+        X = df_mun[["valor_agropecuaria", "pib_per_capita", 
                     "valor_industria", "valor_administracao_publica"]]
         y = df_mun["desmatado"]
 
@@ -60,7 +60,7 @@ for municipio in df["id_municipio_nome"].unique():
         anos_futuros["valor_administracao_publica"] = modelo_adm.predict(anos_futuros[["ano"]])
 
         # Previsão de desmatamento
-        X_futuro = anos_futuros[["ano", "valor_agropecuaria", "pib_per_capita",
+        X_futuro = anos_futuros[["valor_agropecuaria", "pib_per_capita",
                                  "valor_industria", "valor_administracao_publica"]]
         anos_futuros["desmatado_previsto"] = modelo.predict(X_futuro)
 
@@ -70,13 +70,12 @@ for municipio in df["id_municipio_nome"].unique():
                 if anos_futuros["desmatado_previsto"].iloc[i] < desmatado_2021:
                     anos_futuros.loc[i, "desmatado_previsto"] = desmatado_2021 + (i + 1) * 50
 
-        # Impactos
+        # Impactos das variáveis
         coef = modelo.coef_
-        anos_futuros["impacto_ano"] = coef[0] * anos_futuros["ano"]
-        anos_futuros["impacto_agro"] = coef[1] * anos_futuros["valor_agropecuaria"]
-        anos_futuros["impacto_pib"] = coef[2] * anos_futuros["pib_per_capita"]
-        anos_futuros["impacto_ind"] = coef[3] * anos_futuros["valor_industria"]
-        anos_futuros["impacto_adm"] = coef[4] * anos_futuros["valor_administracao_publica"]
+        anos_futuros["impacto_agro"] = coef[0] * anos_futuros["valor_agropecuaria"]
+        anos_futuros["impacto_pib"] = coef[1] * anos_futuros["pib_per_capita"]
+        anos_futuros["impacto_ind"] = coef[2] * anos_futuros["valor_industria"]
+        anos_futuros["impacto_adm"] = coef[3] * anos_futuros["valor_administracao_publica"]
 
         r2 = r2_score(y, y_pred)
         mse = mean_squared_error(y, y_pred)
@@ -89,7 +88,6 @@ for municipio in df["id_municipio_nome"].unique():
             "crescimento_desmatamento": anos_futuros["desmatado_previsto"].iloc[2] - anos_futuros["desmatado_previsto"].iloc[0],
             "r2_score": round(r2, 2),
             "mse": round(mse, 2),
-            "impacto_ano_2024": anos_futuros["impacto_ano"].iloc[2],
             "impacto_agro_2024": anos_futuros["impacto_agro"].iloc[2],
             "impacto_pib_2024": anos_futuros["impacto_pib"].iloc[2],
             "impacto_ind_2024": anos_futuros["impacto_ind"].iloc[2],
@@ -105,7 +103,7 @@ df_resultados = pd.DataFrame(resultados).sort_values(by="desmatamento_2024", asc
 pd.set_option("display.float_format", "{:.2f}".format)
 pd.set_option("display.max_columns", None)
 print(df_resultados.to_string(index=False))
-df_resultados.to_excel("previsao_desmatamento_sem_amazonia.xlsx", index=False)
-print("Arquivo Excel salvo como 'previsao_desmatamento_sem_amazonia.xlsx'")
-df_resultados.to_csv("previsao_desmatamento_sem_amazonia.csv", index=False, encoding="utf-8-sig")
-print("Arquivo CSV salvo como 'previsao_desmatamento_sem_amazonia.csv'")
+df_resultados.to_excel("previsao_desmatamento_sem_ano.xlsx", index=False)
+print("Arquivo Excel salvo como 'previsao_desmatamento_sem_ano.xlsx'")
+df_resultados.to_csv("previsao_desmatamento_sem_ano.csv", index=False, encoding="utf-8-sig")
+print("Arquivo CSV salvo como 'previsao_desmatamento_sem_ano.csv'")
