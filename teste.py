@@ -110,3 +110,7 @@ df_resultados = pd.DataFrame(resultados).sort_values(by="desmatamento_2024", asc
 pd.set_option("display.float_format", "{:.2f}".format)
 pd.set_option("display.max_columns", None)
 print(df_resultados.to_string(index=False))
+df_resultados.to_excel("previsao_desmatamento_2022_2024.xlsx", index=False)
+print("Arquivo Excel salvo como 'previsao_desmatamento_2022_2024.xlsx'")
+df_resultados.to_csv("previsao_desmatamento_2022__2024.csv", index=False, encoding="utf-8-sig")
+print("Arquivo CSV salvo como 'previsao_desmatamento_2022_2024.csv'")
