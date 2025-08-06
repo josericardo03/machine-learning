@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import psycopg2
+import cvxpy as cp
 from sklearn.linear_model import RidgeCV
 from sklearn.metrics import r2_score, mean_squared_error
 import matplotlib.pyplot as plt
@@ -71,13 +72,47 @@ for municipio in df["id_municipio_nome"].unique():
             "valor_industria",
             "valor_administracao_publica"
         ]]
-        anos_futuros["desmatado_previsto"] = modelo.predict(X_futuro)
+        previsao_bruta = modelo.predict(X_futuro)
 
-        # Correção de tendência crescente
-        if desmatado_2020 is not None and desmatado_2021 > desmatado_2020:
-            for i in range(len(anos_futuros)):
-                if anos_futuros.loc[i, "desmatado_previsto"] < desmatado_2021:
-                    anos_futuros.loc[i, "desmatado_previsto"] = desmatado_2021 + (i + 1) * 50
+        # PROGRAMAÇÃO CONVEXA: Ajusta previsões com restrições monótonas
+        z = cp.Variable(3)  # Variáveis para 2022, 2023, 2024
+        
+        # Calcula tendência histórica para definir crescimento mínimo
+        if len(df_mun) >= 3:
+            # Calcula taxa de crescimento médio dos últimos 3 anos
+            anos_recentes = df_mun.sort_values("ano").tail(3)
+            if len(anos_recentes) >= 2:
+                crescimento_medio = np.mean(np.diff(anos_recentes["desmatado"]))
+                # Define crescimento mínimo como 20% da tendência histórica ou 1.5% do valor atual (muito suave)
+                crescimento_minimo = max(crescimento_medio * 0.2, desmatado_2021 * 0.015)
+            else:
+                crescimento_minimo = desmatado_2021 * 0.015  # 1.5% mínimo (muito suave)
+        else:
+            crescimento_minimo = desmatado_2021 * 0.015  # 1.5% mínimo (muito suave)
+        
+        # Restrições de monotonicidade com crescimento muito suave
+        restricoes = [
+            z[0] >= desmatado_2021 + crescimento_minimo,  # 2022 >= 2021 + crescimento_mínimo
+            z[1] >= z[0] + crescimento_minimo * 0.75,     # 2023 >= 2022 + crescimento_mínimo * 0.75 (cresce muito devagar)
+            z[2] >= z[1] + crescimento_minimo * 0.5       # 2024 >= 2023 + crescimento_mínimo * 0.5 (cresce ainda mais devagar)
+        ]
+        
+        # Função objetivo: minimizar distância das previsões originais + penalização por desvio
+        # Peso maior para manter proximidade com previsão original
+        peso_fidelidade = 1.0
+        peso_suavizacao = 0.1
+        
+        objetivo = cp.Minimize(
+            peso_fidelidade * cp.sum_squares(z - previsao_bruta) + 
+            peso_suavizacao * cp.sum_squares(cp.diff(z))  # Suavização da trajetória
+        )
+        
+        # Resolve o problema de otimização
+        problema = cp.Problem(objetivo, restricoes)
+        problema.solve()
+        
+        # Aplica as previsões ajustadas
+        anos_futuros["desmatado_previsto"] = z.value
 
         # Impactos das variáveis (coeficiente × valor previsto)
         coef = modelo.coef_
@@ -99,6 +134,7 @@ for municipio in df["id_municipio_nome"].unique():
                                           anos_futuros.loc[anos_futuros.ano==2022, "desmatado_previsto"].values[0],
             "r2_score":                  round(r2, 2),
             "mse":                       round(mse, 2),
+            "crescimento_minimo_anual":  round(crescimento_minimo, 2),
             "impacto_agro_2024":         anos_futuros.loc[anos_futuros.ano==2024, "impacto_agro"].values[0],
             "impacto_pib_2024":          anos_futuros.loc[anos_futuros.ano==2024, "impacto_pib"].values[0],
             "impacto_ind_2024":          anos_futuros.loc[anos_futuros.ano==2024, "impacto_ind"].values[0],
@@ -116,21 +152,21 @@ df_resultados = pd.DataFrame(resultados).sort_values(by="desmatamento_2024", asc
 pd.set_option("display.float_format", "{:.2f}".format)
 pd.set_option("display.max_columns", None)
 print(df_resultados.to_string(index=False))
-df_resultados.to_excel("previsao_desmatamento_sem_ano.xlsx", index=False)
-df_resultados.to_csv("previsao_desmatamento_sem_ano.csv", index=False, encoding="utf-8-sig")
+df_resultados.to_excel("previsao_desmatamento_convexo.xlsx", index=False)
+df_resultados.to_csv("previsao_desmatamento_convexo.csv", index=False, encoding="utf-8-sig")
 
-# --- 7. Gráficos para o município de Cáceres ---
+# --- 7. Gráficos para o município de Aquidauana ---
 
-# Filtra histórico de Cáceres
+# Filtra histórico de Aquidauana
 df_cac = df[df["id_municipio_nome"] == "Aquidauana"].dropna().sort_values("ano")
 
-# Ajusta modelo principal para histórico de Cáceres
+# Ajusta modelo principal para histórico de Aquidauana
 X_cac_hist = df_cac[["valor_agropecuaria", "pib_per_capita",  
                      "valor_industria", "valor_administracao_publica"]]
 y_cac_hist = df_cac["desmatado"]
 modelo_cac = RidgeCV(alphas=np.logspace(-2, 4, 100), cv=3).fit(X_cac_hist, y_cac_hist)
 
-# Projeção para 2022–2024 em Cáceres
+# Projeção para 2022–2024 em Aquidauana
 anos_fut_cac = pd.DataFrame({"ano": [2022, 2023, 2024]})
 for var, mod in [
     ("valor_agropecuaria", RidgeCV().fit(df_cac[["ano"]], df_cac["valor_agropecuaria"])),
@@ -141,12 +177,49 @@ for var, mod in [
 ]:
     anos_fut_cac[var] = mod.predict(anos_fut_cac[["ano"]])
 
-# Previsão de desmatamento em Cáceres
+# Previsão de desmatamento em Aquidauana
 X_cac_fut = anos_fut_cac[[
     "valor_agropecuaria", "pib_per_capita",
     "valor_industria", "valor_administracao_publica"
 ]]
-anos_fut_cac["desmatado_previsto"] = modelo_cac.predict(X_cac_fut)
+previsao_bruta_cac = modelo_cac.predict(X_cac_fut)
+
+# PROGRAMAÇÃO CONVEXA para Aquidauana
+desmatado_2021_cac = df_cac[df_cac["ano"] == 2021]["desmatado"].values[0]
+
+# Calcula tendência histórica para definir crescimento mínimo
+if len(df_cac) >= 3:
+    # Calcula taxa de crescimento médio dos últimos 3 anos
+    anos_recentes_cac = df_cac.sort_values("ano").tail(3)
+    if len(anos_recentes_cac) >= 2:
+        crescimento_medio_cac = np.mean(np.diff(anos_recentes_cac["desmatado"]))
+        # Define crescimento mínimo como 20% da tendência histórica ou 1.5% do valor atual (muito suave)
+        crescimento_minimo_cac = max(crescimento_medio_cac * 0.2, desmatado_2021_cac * 0.015)
+    else:
+        crescimento_minimo_cac = desmatado_2021_cac * 0.015  # 1.5% mínimo (muito suave)
+else:
+    crescimento_minimo_cac = desmatado_2021_cac * 0.015  # 1.5% mínimo (muito suave)
+
+z_cac = cp.Variable(3)
+restricoes_cac = [
+    z_cac[0] >= desmatado_2021_cac + crescimento_minimo_cac,  # 2022 >= 2021 + crescimento_mínimo
+    z_cac[1] >= z_cac[0] + crescimento_minimo_cac * 0.75,     # 2023 >= 2022 + crescimento_mínimo * 0.75
+    z_cac[2] >= z_cac[1] + crescimento_minimo_cac * 0.5       # 2024 >= 2023 + crescimento_mínimo * 0.5
+]
+
+# Função objetivo com fidelidade e suavização
+peso_fidelidade_cac = 1.0
+peso_suavizacao_cac = 0.1
+
+objetivo_cac = cp.Minimize(
+    peso_fidelidade_cac * cp.sum_squares(z_cac - previsao_bruta_cac) + 
+    peso_suavizacao_cac * cp.sum_squares(cp.diff(z_cac))  # Suavização da trajetória
+)
+
+problema_cac = cp.Problem(objetivo_cac, restricoes_cac)
+problema_cac.solve()
+
+anos_fut_cac["desmatado_previsto"] = z_cac.value
 
 # 7.1 Série Temporal: Histórico vs Previsto
 ts_cac = pd.concat([
@@ -158,7 +231,7 @@ ts_cac["tipo"] = ["Histórico"] * len(df_cac) + ["Previsto"] * len(anos_fut_cac)
 plt.figure(figsize=(10, 6))
 for tipo, grp in ts_cac.groupby("tipo"):
     plt.plot(grp["ano"], grp["valor"], marker="o", label=tipo)
-plt.title("Desmatamento em Cáceres: Histórico (2010–2021) e Previsão (2022–2024)")
+plt.title("Desmatamento em Aquidauana: Histórico (2010–2021) e Previsão (2022–2024)\nProgramação Convexa com Crescimento Muito Suave")
 plt.xlabel("Ano")
 plt.ylabel("Área desmatada (ha)")
 plt.legend()
@@ -178,7 +251,7 @@ impactos_cac = {
 
 plt.figure(figsize=(8, 6))
 plt.bar(impactos_cac.keys(), impactos_cac.values())
-plt.title("Impacto das Variáveis no Desmatamento de Cáceres em 2024")
+plt.title("Impacto das Variáveis no Desmatamento de Aquidauana em 2024\nProgramação Convexa com Crescimento Muito Suave")
 plt.ylabel("Impacto Estimado (ha)")
 plt.xticks(rotation=45)
 plt.tight_layout()
