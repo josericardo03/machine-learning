@@ -13,18 +13,18 @@ import numpy as np
 import psycopg2
 import matplotlib.pyplot as plt
 import seaborn as sns; sns.set(style="whitegrid")
-import cvxpy as cp
+import cvxpy as cp  # pyright: ignore[reportMissingImports]
 
 from sklearn.linear_model import Ridge
 from sklearn.metrics import r2_score, mean_squared_error
-from sklearn.model_selection import TimeSeriesSplit, RandomizedSearchCV
+from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
-from sklearn.ensemble import RandomForestRegressor
+
 
 # -------------------------- FLAGS --------------------------
 FAST_MODE   = False       # True = busca/tuning mais curta
-N_JOBS      = -1          # usa todos os núcleos
+       # usa todos os núcleos
 RANDOM_STATE= 42
 
 # MUNICÍPIOS DO ESTUDO DE CASO (gerar 3 gráficos cada)
@@ -91,7 +91,7 @@ def project_features_linear(df_mun):
     for var in base_cols:
         Xy = df_mun[["ano", var]].dropna().copy()
         X = Xy[["ano"]].to_numpy(float); y = Xy[var].to_numpy(float)
-        mdl = Ridge(alpha=1.0, random_state=RANDOM_STATE).fit(X, y)
+        mdl = Ridge(alpha=1.0).fit(X, y)
         anos_fut[var] = mdl.predict(anos_fut[["ano"]].to_numpy())
     anos_fut = anos_fut.sort_values("ano")
     for col in base_cols:
@@ -100,27 +100,7 @@ def project_features_linear(df_mun):
     return anos_fut
 
 # -------------------------- 3. Modelos e Tuning --------------------------
-def fit_rf_tuned(X, y_log, n_iter=12, cv_splits=3):
-    if FAST_MODE:
-        n_iter = min(n_iter, 8); cv_splits = min(cv_splits, 3)
-    tscv = TimeSeriesSplit(n_splits=min(cv_splits, max(2, len(y_log)-2)))
-    rf = RandomForestRegressor(random_state=RANDOM_STATE, n_jobs=N_JOBS)
-    param_dist = {
-        "n_estimators":[100,140,180],
-        "max_depth":[3,4,5,6,8],
-        "min_samples_leaf":[2,3,4],
-        "max_features":[0.5,0.7,0.9],
-        "bootstrap":[True],
-        "max_samples":[0.7,0.9],
-        "ccp_alpha":[0.0,1e-4,5e-4,1e-3]
-    }
-    search = RandomizedSearchCV(
-        rf, param_distributions=param_dist, n_iter=n_iter, cv=tscv,
-        scoring="neg_mean_squared_error", random_state=RANDOM_STATE,
-        n_jobs=N_JOBS, verbose=0
-    )
-    search.fit(X, y_log)
-    return search.best_estimator_, search.best_params_
+
 
 def select_alpha_ridge_1se(X, y_log, alphas=None, cv_splits=3):
     if alphas is None:
@@ -330,24 +310,14 @@ for municipio in municipios:
     try:
         X, y_log, anos_np, dfeat, feat_cols = make_features(df_mun)
 
-        def fit_fn_rf(Xtr, ytr):
-            return fit_rf_tuned(Xtr, ytr, n_iter=(8 if FAST_MODE else 12), cv_splits=(3 if FAST_MODE else 4))
         def fit_fn_ridge(Xtr, ytr):
             return fit_ridge_tuned(Xtr, ytr, cv_splits=(3 if FAST_MODE else 4))
 
-        m_rf = evaluate_honest(X, y_log, anos_np, fit_fn_rf)
-        m_rg = evaluate_honest(X, y_log, anos_np, fit_fn_ridge)
-
-        def key(m):
-            _,_,_,_, r2_cv, r2_in_raw,_, r2_hold_raw,_,_,_ = m
-            if not np.isnan(r2_hold_raw): return r2_hold_raw
-            if not np.isnan(r2_cv): return r2_cv
-            return r2_in_raw
-
-        chosen = m_rf if key(m_rf) >= key(m_rg) else m_rg
         (r2_in_log, mse_in_log, r2_hold_log, mse_hold_log, r2_cv,
-         r2_in_raw, mse_in_raw, r2_hold_raw, mse_hold_raw, modelo, params) = chosen
-        modelo_nome = "RandomForest" if chosen is m_rf else "Ridge"
+         r2_in_raw, mse_in_raw, r2_hold_raw, mse_hold_raw, modelo, params) = evaluate_honest(
+            X, y_log, anos_np, fit_fn_ridge
+        )
+        modelo_nome = "Ridge"
 
         anos_fut = project_features_linear(df_mun)
         y_2021 = float(df_mun.loc[df_mun["ano"]==2021, "desmatado"].values[0])
