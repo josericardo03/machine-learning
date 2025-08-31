@@ -1,17 +1,16 @@
 # -*- coding: utf-8 -*-
 """
-Tabela de correlação de Pearson (desmatamento vs variáveis econômicas) + GRÁFICO
--------------------------------------------------------------------------------
+Tabela de correlação de Pearson (desmatamento vs variáveis econômicas) + GRÁFICOS
+--------------------------------------------------------------------------------
 - Fonte: view_dados_completos (2010–2021)
 - Saídas:
     1) correlacao_pearson_desmatamento.xlsx  (abas: por_municipio, geral)
     2) correlacao_pearson_por_municipio.csv  (tabela por município)
     3) correlacao_pearson_geral.csv          (tabela geral)
-    4) correlacao_pearson_<variavel>_por_municipio.csv  (dados do gráfico)
-    5) correlacao_pearson_<variavel>_por_municipio.png  (gráfico de barras)
+    4) correlacao_pearson_<variavel>_por_municipio.csv  (dados do gráfico, 1 por variável)
+    5) correlacao_pearson_<variavel>_por_municipio.png  (gráfico de barras, 1 por variável)
 """
 
-import os
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -37,11 +36,8 @@ VAR_XS  = ["valor_agropecuaria", "pib_per_capita", "valor_industria", "valor_adm
 DO_DELTA   = False   # Pearson em primeira diferença
 DO_LOGDIFF = False   # Pearson em log-diff
 
-# >>> VARIÁVEL PARA O GRÁFICO (mude aqui)
-VAR_TO_PLOT = "valor_agropecuaria"   # exemplos: "pib_per_capita", "valor_industria", "valor_administracao_publica"
-
-SAIDA_XLSX = "correlacao_pearson_desmatamento.xlsx"
-SAIDA_CSV_MUN = "correlacao_pearson_por_municipio.csv"
+SAIDA_XLSX      = "correlacao_pearson_desmatamento.xlsx"
+SAIDA_CSV_MUN   = "correlacao_pearson_por_municipio.csv"
 SAIDA_CSV_GERAL = "correlacao_pearson_geral.csv"
 
 
@@ -130,11 +126,11 @@ def exporta_tabelas(df_por_mun, df_geral):
         df_geral.to_excel(xw, index=False, sheet_name="geral")
 
 
-# =============== GRÁFICO ===============
+# =============== GRÁFICOS ===============
 def grafico_barras_pearson(df_por_mun, var_to_plot):
     col = f"pearson_{var_to_plot}"
     if col not in df_por_mun.columns:
-        raise ValueError(f"Coluna '{col}' não encontrada. Verifique VAR_TO_PLOT.")
+        raise ValueError(f"Coluna '{col}' não encontrada. Verifique o nome da variável.")
 
     df_plot = df_por_mun[["municipio", col]].copy()
     df_plot = df_plot.dropna().sort_values(col, ascending=False).reset_index(drop=True)
@@ -144,12 +140,11 @@ def grafico_barras_pearson(df_por_mun, var_to_plot):
     df_plot.to_csv(csv_out, index=False, encoding="utf-8-sig")
 
     # gráfico
-    plt.figure(figsize=(10, max(4, 0.35 * len(df_plot))))  # altura ajusta c/ nº de cidades
+    plt.figure(figsize=(10, max(4, 0.35 * len(df_plot))))
     plt.barh(df_plot["municipio"], df_plot[col])
     plt.gca().invert_yaxis()  # maior no topo
     plt.xlabel(f"Correlação de Pearson com {var_to_plot.replace('_',' ')}")
     plt.title(f"Correlação (Pearson) por município — variável: {var_to_plot}")
-    # rótulos de valor
     for i, v in enumerate(df_plot[col].values):
         plt.text(v + (0.01 if v >= 0 else -0.01), i, f"{v:.2f}", va="center",
                  ha="left" if v >= 0 else "right")
@@ -180,10 +175,15 @@ def main():
     print("\n=== Correlações gerais (média por ano) ===")
     print(df_geral.to_string(index=False))
 
-    # 4) Gráfico de barras para a variável escolhida
-    if VAR_TO_PLOT not in VAR_XS:
-        raise ValueError(f"VAR_TO_PLOT inválida: {VAR_TO_PLOT}. Use uma de {VAR_XS}.")
-    grafico_barras_pearson(df_por_mun, VAR_TO_PLOT)
+    # 4) GRÁFICOS + CSV para TODAS as variáveis solicitadas
+    vars_to_plot = [
+        "valor_agropecuaria",
+        "pib_per_capita",
+        "valor_industria",
+        "valor_administracao_publica",
+    ]
+    for v in vars_to_plot:
+        grafico_barras_pearson(df_por_mun, v)
 
 
 if __name__ == "__main__":
