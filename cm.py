@@ -4,17 +4,17 @@ Regressão linear simples por município
 --------------------------------------
 Modelo: desmatado = β0 + β1 * X + ε
 
-Escolha o índice X em INDEX_VAR (uma string) ou use "ALL" para rodar para todos:
-    INDEX_VAR = "valor_agropecuaria"
-    # ou
-    INDEX_VAR = "ALL"
+Saídas (sempre):
+- regressao_simples_por_municipio.csv        (TODAS as variáveis, empilhado)
+- regressao_simples_por_municipio.xlsx       (aba 'empilhado' com TODAS)
+- regressao_simples_pivot.xlsx               (β1 por variável em colunas)
 
-Saídas:
-- regressao_simples_por_municipio.csv
-- regressao_simples_por_municipio.xlsx
-- (se INDEX_VAR == "ALL"): regressao_simples_pivot.xlsx  (β1 por variável em colunas)
+Saídas por variável (sempre, 1 arquivo por variável):
+- regressao_simples_por_municipio__<variavel>.csv
 
-Requisitos: pandas, numpy, psycopg2, statsmodels (opcional; se não houver, cai para numpy.polyfit sem p-valor/erro).
+Gráficos:
+- plots_coerentes_com_tabela/<variavel>/<municipio>.png  (dispersão + reta, y=desmatado, x=variável)
+- plots_slopes_por_variavel/slope_<variavel>_por_municipio.csv/.png (barras β1)
 """
 
 import warnings
@@ -23,7 +23,7 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import pandas as pd
 import psycopg2
-import matplotlib.pyplot as plt  # ADIÇÃO
+import matplotlib.pyplot as plt
 
 # statsmodels para métricas completas; se não tiver, usamos fallback
 try:
@@ -50,15 +50,15 @@ VAR_XS = [
     "valor_administracao_publica",
 ]
 
-# Escolha aqui: uma variável específica ou "ALL"
-INDEX_VAR = "valor_agropecuaria"   # ex.: "pib_per_capita" | "ALL"
+# Se quiser focar num gráfico específico durante os prints, pode usar:
+INDEX_VAR = "valor_agropecuaria"   # "ALL" também funciona, mas as saídas agora SEMPRE cobrem todas as variáveis
 
-SAIDA_BASE = "regressao_simples_por_municipio"
-SAIDA_PIVOT = "regressao_simples_pivot.xlsx"  # usado quando INDEX_VAR == "ALL"
+SAIDA_BASE  = "regressao_simples_por_municipio"
+SAIDA_PIVOT = "regressao_simples_pivot.xlsx"
 
 # Pastas para salvar os gráficos
-PLOT_DIR = "plots_regressao_invertido"      # X=desmatado, Y=variável (mantido)
-PLOT_DIR_TABELA = "plots_coerentes_com_tabela"  # X=variável, Y=desmatado (NOVO)
+PLOT_DIR_TABELA = "plots_coerentes_com_tabela"  # X=variável, Y=desmatado (reta)
+PLOT_DIR_SLOPE  = "plots_slopes_por_variavel"   # barras de β1 por município
 
 
 # ============== DADOS ==============
@@ -86,9 +86,8 @@ def carrega():
 # ============== REGRESSÃO ==============
 def regressao_simples_xy(y, x):
     """
-    Executa regressão linear simples y = b0 + b1*x + e.
-    Retorna dict: slope (b1), intercept (b0), r2, p_value, std_err, n
-    - Se statsmodels não estiver disponível, p_value e std_err serão NaN.
+    y = desmatado, x = variável X
+    Retorna: slope (b1), intercept (b0), r2, p_value, std_err, n
     """
     d = pd.DataFrame({"y": y, "x": x}).dropna()
     n = len(d)
@@ -97,18 +96,18 @@ def regressao_simples_xy(y, x):
                 "p_value": np.nan, "std_err": np.nan, "n": int(n)}
 
     if HAS_SM:
-        X = sm.add_constant(d["x"].values)  # intercepto
+        X = sm.add_constant(d["x"].values)
         model = sm.OLS(d["y"].values, X).fit()
         intercept = float(model.params[0])
-        slope = float(model.params[1])
-        r2 = float(model.rsquared)
-        p_value = float(model.pvalues[1]) if model.pvalues.shape[0] > 1 else np.nan
-        std_err = float(model.bse[1]) if model.bse.shape[0] > 1 else np.nan
+        slope     = float(model.params[1])
+        r2        = float(model.rsquared)
+        p_value   = float(model.pvalues[1]) if model.pvalues.shape[0] > 1 else np.nan
+        std_err   = float(model.bse[1])     if model.bse.shape[0] > 1 else np.nan
         return {"slope": slope, "intercept": intercept, "r2": r2,
                 "p_value": p_value, "std_err": std_err, "n": int(n)}
     else:
         b1, b0 = np.polyfit(d["x"].values, d["y"].values, 1)
-        y_hat = b1 * d["x"].values + b0
+        y_hat  = b1 * d["x"].values + b0
         ss_res = np.sum((d["y"].values - y_hat) ** 2)
         ss_tot = np.sum((d["y"].values - np.mean(d["y"].values)) ** 2)
         r2 = 1 - ss_res / ss_tot if ss_tot > 0 else np.nan
@@ -119,7 +118,7 @@ def regressao_simples_xy(y, x):
 def roda_para_variavel(df, varx):
     linhas = []
     for mun, dmun in df.groupby("municipio"):
-        # >>> ESTA É A MESMA ORIENTAÇÃO DA SUA TABELA: y = desmatado, x = varx
+        # orientação da sua tabela: y = desmatado, x = varx
         res = regressao_simples_xy(dmun[VAR_Y], dmun[varx])
         row = {"municipio": mun, "variavel": varx}
         row.update(res)
@@ -128,51 +127,10 @@ def roda_para_variavel(df, varx):
     return out
 
 
-# ===================== PLOTS (mantido) =====================
-def regressao_var_em_desmatado(y_var, x_desmatado):
-    """ Ajusta: y_var = b0 + b1 * x_desmatado + e (mantido) """
-    return regressao_simples_xy(y=y_var, x=x_desmatado)
-
-
-def plot_invertido_por_municipio(df, varx, outdir=PLOT_DIR):
-    """
-    Mantido: X=desmatado, Y=varx (reta de varx ~ desmatado).
-    Não é o gráfico coerente com a tabela, mas deixamos para comparação.
-    """
-    import os
-    subdir = os.path.join(outdir, varx)
-    os.makedirs(subdir, exist_ok=True)
-
-    for mun, dmun in df.groupby("municipio"):
-        d = dmun[["desmatado", varx]].dropna().copy()
-        if len(d) < 2 or d["desmatado"].std() == 0 or d[varx].std() == 0:
-            continue
-
-        fit = regressao_var_em_desmatado(d[varx], d["desmatado"])
-        b1, b0 = fit["slope"], fit["intercept"]
-
-        x = d["desmatado"].to_numpy()
-        y = d[varx].to_numpy()
-        y_hat = b0 + b1 * x
-
-        plt.figure(figsize=(6,4))
-        plt.scatter(x, y, alpha=0.85)
-        plt.plot(x, y_hat, linewidth=2)
-        plt.xlabel("desmatado (ha)")
-        plt.ylabel(varx.replace("_"," "))
-        plt.title(f"{mun} — {varx} = {b0:.2f} + {b1:.6f}·desmatado\nR²={fit['r2']:.2f}, n={fit['n']}")
-        plt.tight_layout()
-        fname = f"{mun.replace('/','-').replace(' ','_')}.png"
-        plt.savefig(os.path.join(subdir, fname), dpi=150)
-        plt.close()
-
-
-# ===================== PLOT NOVO (COERENTE COM A TABELA) =====================
+# ===================== GRÁFICOS =====================
 def plot_coerente_com_tabela(df, varx, outdir=PLOT_DIR_TABELA):
     """
-    NOVO: gráfico coerente com a TABELA (y = desmatado, x = varx).
-    Usa a MESMA regressão da sua tabela: desmatado ~ varx.
-    Desenha: pontos (varx, desmatado) + reta: desmatado = b0 + b1*varx.
+    y = desmatado, x = varx. Desenha pontos (x, y) + reta ajustada.
     """
     import os
     subdir = os.path.join(outdir, varx)
@@ -183,7 +141,6 @@ def plot_coerente_com_tabela(df, varx, outdir=PLOT_DIR_TABELA):
         if len(d) < 2 or d[varx].std() == 0 or d["desmatado"].std() == 0:
             continue
 
-        # Coeficientes na MESMA orientação da sua tabela
         fit = regressao_simples_xy(d["desmatado"], d[varx])  # y=desmatado, x=varx
         b1, b0 = fit["slope"], fit["intercept"]
 
@@ -203,72 +160,85 @@ def plot_coerente_com_tabela(df, varx, outdir=PLOT_DIR_TABELA):
         plt.close()
 
 
+def grafico_barras_slope(df_resultados, varx, outdir=PLOT_DIR_SLOPE):
+    """
+    df_resultados: colunas ['municipio','variavel','slope',...]
+    plota barras de β1 por município e salva CSV/PNG.
+    """
+    import os
+    os.makedirs(outdir, exist_ok=True)
+
+    d = df_resultados[df_resultados["variavel"] == varx][["municipio", "slope"]].copy()
+    d = d.dropna().sort_values("slope", ascending=False).reset_index(drop=True)
+
+    # CSV por variável (barras)
+    csv_path = os.path.join(outdir, f"slope_{varx}_por_municipio.csv")
+    d.to_csv(csv_path, index=False, encoding="utf-8-sig")
+
+    # Plot
+    plt.figure(figsize=(10, max(4, 0.35 * len(d))))
+    plt.barh(d["municipio"], d["slope"])
+    plt.gca().invert_yaxis()
+    plt.xlabel("Coeficiente angular (β1)")
+    plt.title(f"β1 por município — modelo: desmatado ~ {varx}")
+
+    for i, v in enumerate(d["slope"].values):
+        plt.text(v + (abs(v)*0.02 if v != 0 else 0.01), i, f"{v:.4g}",
+                 va="center", ha="left" if v >= 0 else "right")
+
+    plt.tight_layout()
+    png_path = os.path.join(outdir, f"slope_{varx}_por_municipio.png")
+    plt.savefig(png_path, dpi=150)
+    plt.close()
+    print(f"[β1] Gráfico salvo: {png_path}")
+    print(f"[β1] CSV salvo:     {csv_path}")
+
+
+# ===================== MAIN =====================
 def main():
     df = carrega()
 
     # sanity check
-    needed = {"ano", "municipio", VAR_Y, *VAR_XS}
-    miss = needed.difference(df.columns)
-    if miss:
-        raise RuntimeError(f"Faltam colunas na base: {miss}")
+    esperadas = {"ano", "municipio", VAR_Y, *VAR_XS}
+    faltantes = esperadas.difference(df.columns)
+    if faltantes:
+        raise RuntimeError(f"Faltam colunas na base: {faltantes}")
 
-    if INDEX_VAR == "ALL":
-        # Empilha resultados para todas as variáveis (mesma orientação da TABELA)
-        frames = []
-        for v in VAR_XS:
-            frames.append(roda_para_variavel(df, v))
-        df_full = pd.concat(frames, ignore_index=True)
+    # ---------- SEMPRE calcular TODAS as variáveis ----------
+    frames_all = [roda_para_variavel(df, v) for v in VAR_XS]
+    df_full_all = pd.concat(frames_all, ignore_index=True)
 
-        # Exporta empilhado
-        df_full.to_csv(f"{SAIDA_BASE}.csv", index=False, encoding="utf-8-sig")
-        with pd.ExcelWriter(f"{SAIDA_BASE}.xlsx", engine="openpyxl") as xw:
-            df_full.to_excel(xw, index=False, sheet_name="empilhado")
+    # 1) Arquivo principal (TODAS empilhadas)
+    df_full_all.to_csv(f"{SAIDA_BASE}.csv", index=False, encoding="utf-8-sig")
+    with pd.ExcelWriter(f"{SAIDA_BASE}.xlsx", engine="openpyxl") as xw:
+        df_full_all.to_excel(xw, index=False, sheet_name="empilhado")
 
-        # Cria versão pivoteada com β1 (slope) por variável em colunas
-        piv = df_full.pivot(index="municipio", columns="variavel", values="slope").reset_index()
-        with pd.ExcelWriter(SAIDA_PIVOT, engine="openpyxl") as xw:
-            piv.to_excel(xw, index=False, sheet_name="slope_por_variavel")
+    # 2) Pivot com β1 por variável
+    piv = df_full_all.pivot(index="municipio", columns="variavel", values="slope").reset_index()
+    with pd.ExcelWriter(SAIDA_PIVOT, engine="openpyxl") as xw:
+        piv.to_excel(xw, index=False, sheet_name="slope_por_variavel")
 
-        # >>> GRÁFICO COERENTE COM A TABELA (X=var, Y=desmatado)
-        for v in VAR_XS:
-            plot_coerente_com_tabela(df, v, outdir=PLOT_DIR_TABELA)
+    # 3) CSV separado para CADA variável (pedido novo)
+    #    Ex.: regressao_simples_por_municipio__valor_agropecuaria.csv
+    for v in VAR_XS:
+        df_v = df_full_all[df_full_all["variavel"] == v].copy()
+        df_v.to_csv(f"{SAIDA_BASE}__{v}.csv", index=False, encoding="utf-8-sig")
 
-        # (Opcional) Mantém também o gráfico invertido para comparação
-        # for v in VAR_XS:
-        #     plot_invertido_por_municipio(df, v, outdir=PLOT_DIR)
+    # 4) Gráficos (reta) e barras β1 — para todas as variáveis
+    for v in VAR_XS:
+        plot_coerente_com_tabela(df, v, outdir=PLOT_DIR_TABELA)
+        grafico_barras_slope(df_full_all, v, outdir=PLOT_DIR_SLOPE)
 
-        import os
-        print("Gráficos (coerentes com a TABELA) em:", os.path.abspath(PLOT_DIR_TABELA))
+    # Prints de amostra
+    pd.set_option("display.float_format", "{:.6f}".format)
+    print("\n=== Amostra (empilhado de TODAS as variáveis) ===")
+    print(df_full_all.head().to_string(index=False))
+    print("\n=== Slope por variável (pivoteado) ===")
+    print(piv.head().to_string(index=False))
 
-        # Print rápido
-        print("\n=== Amostra (empilhado) ===")
-        print(df_full.head().to_string(index=False))
-        print("\n=== Slope por variável (pivoteado) ===")
-        print(piv.head().to_string(index=False))
-
-    else:
-        if INDEX_VAR not in VAR_XS:
-            raise ValueError(f"INDEX_VAR inválida: {INDEX_VAR}. Use uma de {VAR_XS} ou 'ALL'.")
-
-        df_res = roda_para_variavel(df, INDEX_VAR)
-
-        # Exporta
-        df_res.to_csv(f"{SAIDA_BASE}.csv", index=False, encoding="utf-8-sig")
-        with pd.ExcelWriter(f"{SAIDA_BASE}.xlsx", engine="openpyxl") as xw:
-            df_res.to_excel(xw, index=False, sheet_name=INDEX_VAR)
-
-        print(f"\n=== Regressão simples por município | X = {INDEX_VAR} ===")
-        print(df_res.head().to_string(index=False))
-
-        # >>> GRÁFICO COERENTE COM A TABELA para a variável escolhida
-        plot_coerente_com_tabela(df, INDEX_VAR, outdir=PLOT_DIR_TABELA)
-
-        # (Opcional) Mantém também o invertido para comparação
-        # plot_invertido_por_municipio(df, INDEX_VAR, outdir=PLOT_DIR)
-
-        import os
-        print("Gráficos (coerentes com a TABELA) em:",
-              os.path.join(os.path.abspath(PLOT_DIR_TABELA), INDEX_VAR))
+    print("\nArquivos individuais por variável gerados para:")
+    for v in VAR_XS:
+        print(f" - {SAIDA_BASE}__{v}.csv")
 
 
 if __name__ == "__main__":
